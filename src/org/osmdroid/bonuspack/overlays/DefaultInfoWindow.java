@@ -2,8 +2,10 @@ package org.osmdroid.bonuspack.overlays;
 
 import org.osmdroid.bonuspack.utils.BonusPackHelper;
 import org.osmdroid.views.MapView;
+
 import android.content.Context;
 import android.graphics.drawable.Drawable;
+import android.text.Html;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -59,7 +61,8 @@ public class DefaultInfoWindow extends InfoWindow {
 		String snippet = extendedOverlayItem.getDescription();
 		if (snippet == null)
 			snippet = "";
-		((TextView)mView.findViewById(mDescriptionId /*R.id.description*/)).setText(snippet);
+		
+		((TextView)mView.findViewById(mDescriptionId /*R.id.description*/)).setText(Html.fromHtml(snippet));
 		
 		//handle sub-description, hidding or showing the text view:
 		TextView subDescText = (TextView)mView.findViewById(mSubDescriptionId);
