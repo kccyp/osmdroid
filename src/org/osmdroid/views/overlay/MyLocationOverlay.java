@@ -19,8 +19,6 @@ import org.osmdroid.views.Projection;
 import org.osmdroid.views.overlay.Overlay.Snappable;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 import org.osmdroid.views.util.constants.MapViewConstants;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -42,6 +40,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Display;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -56,9 +55,7 @@ import android.view.WindowManager;
  * @deprecated Use {@link MyLocationNewOverlay} instead.
  */
 public class MyLocationOverlay extends Overlay implements IMyLocationOverlay, IOverlayMenuProvider,
-		SensorEventListener, LocationListener, Snappable {
-
-	private static final Logger logger = LoggerFactory.getLogger(MyLocationOverlay.class);
+		SensorEventListener, LocationListener, Snappable {	
 
 	// ===========================================================
 	// Constants
@@ -384,12 +381,12 @@ public class MyLocationOverlay extends Overlay implements IMyLocationOverlay, IO
 	@Override
 	public void onLocationChanged(final Location location) {
 		if (DEBUGMODE) {
-			logger.debug("onLocationChanged(" + location + ")");
+			Log.d("daryu-osmdroid","onLocationChanged(" + location + ")");
 		}
 
 		// ignore temporary non-gps fix
 		if (mIgnorer.shouldIgnore(location.getProvider(), System.currentTimeMillis())) {
-			logger.debug("Ignore temporary non-gps location");
+			Log.d("daryu-osmdroid","Ignore temporary non-gps location");
 			return;
 		}
 
@@ -453,7 +450,7 @@ public class MyLocationOverlay extends Overlay implements IMyLocationOverlay, IO
 			final double yDiff = y - mMapCoords.y;
 			final boolean snap = xDiff * xDiff + yDiff * yDiff < 64;
 			if (DEBUGMODE) {
-				logger.debug("snap=" + snap);
+				Log.d("daryu-osmdroid","snap=" + snap);
 			}
 			return snap;
 		} else {

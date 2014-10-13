@@ -3,12 +3,11 @@ package org.osmdroid.tileprovider.tilesource;
 import org.osmdroid.ResourceProxy;
 import org.osmdroid.tileprovider.MapTile;
 import org.osmdroid.tileprovider.util.CloudmadeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import android.util.Log;
 
 public class CloudmadeTileSource extends OnlineTileSourceBase implements IStyledTileSource<Integer> {
 
-	private static final Logger logger = LoggerFactory.getLogger(CloudmadeTileSource.class);
 
 	private Integer mStyle = 1;
 
@@ -32,7 +31,7 @@ public class CloudmadeTileSource extends OnlineTileSourceBase implements IStyled
 	public String getTileURLString(final MapTile pTile) {
 		final String key = CloudmadeUtil.getCloudmadeKey();
 		if (key.length() == 0) {
-			logger.error("CloudMade key is not set. You should enter it in the manifest and call CloudmadeUtil.retrieveCloudmadeKey()");
+			Log.e("daryu-osmdroid","CloudMade key is not set. You should enter it in the manifest and call CloudmadeUtil.retrieveCloudmadeKey()");
 		}
 		final String token = CloudmadeUtil.getCloudmadeToken();
 		return String.format(getBaseUrl(), key, mStyle, getTileSizePixels(), pTile.getZoomLevel(),
@@ -49,7 +48,7 @@ public class CloudmadeTileSource extends OnlineTileSourceBase implements IStyled
 		try {
 			mStyle = Integer.parseInt(pStyle);
 		} catch (final NumberFormatException e) {
-			logger.warn("Error setting integer style: " + pStyle);
+			Log.w("daryu-osmdroid","Error setting integer style: " + pStyle);
 		}
 	}
 

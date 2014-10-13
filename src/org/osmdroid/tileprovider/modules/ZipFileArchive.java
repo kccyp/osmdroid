@@ -9,12 +9,10 @@ import java.util.zip.ZipFile;
 
 import org.osmdroid.tileprovider.MapTile;
 import org.osmdroid.tileprovider.tilesource.ITileSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import android.util.Log;
 
 public class ZipFileArchive implements IArchiveFile {
-
-	private static final Logger logger = LoggerFactory.getLogger(ZipFileArchive.class);
 
 	private final ZipFile mZipFile;
 
@@ -35,7 +33,7 @@ public class ZipFileArchive implements IArchiveFile {
 				return mZipFile.getInputStream(entry);
 			}
 		} catch (final IOException e) {
-			logger.warn("Error getting zip stream: " + pTile, e);
+			Log.w("daryu-osmdroid","Error getting zip stream: " + pTile, e);
 		}
 		return null;
 	}
