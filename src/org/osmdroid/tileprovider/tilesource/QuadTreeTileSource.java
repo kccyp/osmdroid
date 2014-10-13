@@ -7,7 +7,7 @@ public class QuadTreeTileSource extends OnlineTileSourceBase {
 
 	public QuadTreeTileSource(final String aName, final string aResourceId,
 			final int aZoomMinLevel, final int aZoomMaxLevel, final int aTileSizePixels,
-			final String aImageFilenameEnding, final String... aBaseUrl) {
+			final String aImageFilenameEnding, final String[] aBaseUrl) {
 		super(aName, aResourceId, aZoomMinLevel, aZoomMaxLevel, aTileSizePixels,
 				aImageFilenameEnding, aBaseUrl);
 	}

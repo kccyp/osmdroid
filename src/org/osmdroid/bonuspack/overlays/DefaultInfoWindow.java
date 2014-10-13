@@ -2,10 +2,10 @@ package org.osmdroid.bonuspack.overlays;
 
 import org.osmdroid.bonuspack.utils.BonusPackHelper;
 import org.osmdroid.views.MapView;
-
 import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.Html;
+import android.text.Spanned;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -13,16 +13,19 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 /**
- * Default implementation of InfoWindow. 
+ * Default implementation of InfoWindow for an ExtendedOverlayItem. 
  * It handles a text and a description. 
  * It also handles optionally a sub-description and an image. 
  * Clicking on the bubble will close it. 
  * 
  * @author M.Kergall
  */
-public class DefaultInfoWindow extends InfoWindow {
+@Deprecated public class DefaultInfoWindow extends InfoWindow {
 
-	static int mTitleId=0, mDescriptionId=0, mSubDescriptionId=0, mImageId=0; //resource ids
+	static int mTitleId=BonusPackHelper.UNDEFINED_RES_ID, 
+			mDescriptionId=BonusPackHelper.UNDEFINED_RES_ID, 
+			mSubDescriptionId=BonusPackHelper.UNDEFINED_RES_ID, 
+			mImageId=BonusPackHelper.UNDEFINED_RES_ID; //resource ids
 
 	private static void setResIds(Context context){
 		String packageName = context.getPackageName(); //get application package name
@@ -30,7 +33,8 @@ public class DefaultInfoWindow extends InfoWindow {
 		mDescriptionId = context.getResources().getIdentifier("id/bubble_description", null, packageName);
 		mSubDescriptionId = context.getResources().getIdentifier("id/bubble_subdescription", null, packageName);
 		mImageId = context.getResources().getIdentifier("id/bubble_image", null, packageName);
-		if (mTitleId == 0 || mDescriptionId == 0 || mSubDescriptionId == 0 || mImageId == 0) {
+		if (mTitleId == BonusPackHelper.UNDEFINED_RES_ID || mDescriptionId == BonusPackHelper.UNDEFINED_RES_ID 
+				|| mSubDescriptionId == BonusPackHelper.UNDEFINED_RES_ID || mImageId == BonusPackHelper.UNDEFINED_RES_ID) {
 			Log.e(BonusPackHelper.LOG_TAG, "DefaultInfoWindow: unable to get res ids in "+packageName);
 		}
 	}
@@ -38,7 +42,7 @@ public class DefaultInfoWindow extends InfoWindow {
 	public DefaultInfoWindow(int layoutResId, MapView mapView) {
 		super(layoutResId, mapView);
 		
-		if (mTitleId == 0)
+		if (mTitleId == BonusPackHelper.UNDEFINED_RES_ID)
 			setResIds(mapView.getContext());
 		
 		//default behavior: close it when clicking on the bubble:
@@ -46,7 +50,7 @@ public class DefaultInfoWindow extends InfoWindow {
 			@Override public boolean onTouch(View v, MotionEvent e) {
 				if (e.getAction() == MotionEvent.ACTION_UP)
 					close();
-				return true; //From Osmdroid 3.0.10, event is properly consumed. 
+				return true;
 			}
 		});
 	}
@@ -61,14 +65,14 @@ public class DefaultInfoWindow extends InfoWindow {
 		String snippet = extendedOverlayItem.getDescription();
 		if (snippet == null)
 			snippet = "";
-		
-		((TextView)mView.findViewById(mDescriptionId /*R.id.description*/)).setText(Html.fromHtml(snippet));
+		Spanned snippetHtml = Html.fromHtml(snippet);
+		((TextView)mView.findViewById(mDescriptionId /*R.id.description*/)).setText(snippetHtml);
 		
 		//handle sub-description, hidding or showing the text view:
 		TextView subDescText = (TextView)mView.findViewById(mSubDescriptionId);
 		String subDesc = extendedOverlayItem.getSubDescription();
 		if (subDesc != null && !("".equals(subDesc))){
-			subDescText.setText(subDesc);
+			subDescText.setText(Html.fromHtml(subDesc));
 			subDescText.setVisibility(View.VISIBLE);
 		} else {
 			subDescText.setVisibility(View.GONE);

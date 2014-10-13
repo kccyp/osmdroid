@@ -5,14 +5,14 @@ import org.osmdroid.tileprovider.MapTileProviderBasic;
 import org.osmdroid.tileprovider.tilesource.ITileSource;
 import org.osmdroid.util.TileSystem;
 import org.osmdroid.views.MapView;
-import org.osmdroid.views.MapView.Projection;
-import org.osmdroid.views.safecanvas.ISafeCanvas;
-import org.osmdroid.views.safecanvas.SafePaint;
+import org.osmdroid.views.Projection;
 
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Paint.Style;
+import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
@@ -32,11 +32,7 @@ public class MinimapOverlay extends TilesOverlay {
 	private int mHeight = 100;
 	private int mPadding = 10;
 	private int mZoomDifference;
-	private final SafePaint mPaint;
-	private int mWorldSize_2;
-
-	// The Mercator coordinates of what is on the screen
-	final private Rect mViewportRect = new Rect();
+	private final Paint mPaint;
 
 	// The Mercator coordinates of the map tile area we are interested in the target zoom level
 	final private Rect mTileArea = new Rect();
@@ -46,6 +42,11 @@ public class MinimapOverlay extends TilesOverlay {
 
 	// Stores the intersection of the minimap and the Canvas clipping area
 	final private Rect mIntersectionRect = new Rect();
+	private Projection mProjection;
+
+	// Prevent allocations during draw
+	private Point mTopLeftMercator = new Point();
+	private Point mBottomRightMercator = new Point();
 
 	/**
 	 * Creates a {@link MinimapOverlay} with the supplied tile provider. The {@link Handler} passed
@@ -75,7 +76,7 @@ public class MinimapOverlay extends TilesOverlay {
 		mWidth *= density;
 		mHeight *= density;
 
-		mPaint = new SafePaint();
+		mPaint = new Paint();
 		mPaint.setColor(Color.GRAY);
 		mPaint.setStyle(Style.FILL);
 		mPaint.setStrokeWidth(2);
@@ -126,28 +127,26 @@ public class MinimapOverlay extends TilesOverlay {
 	}
 
 	@Override
-	protected void drawSafe(final ISafeCanvas pC, final MapView pOsmv, final boolean shadow) {
-
+	protected void draw(Canvas c, MapView osmv, boolean shadow) {
 		if (shadow) {
 			return;
 		}
 
 		// Don't draw if we are animating
-		if (pOsmv.isAnimating()) {
+		if (osmv.isAnimating()) {
 			return;
 		}
 
-		// Calculate the half-world size
-		final Projection projection = pOsmv.getProjection();
-		final int zoomLevel = projection.getZoomLevel();
-		mWorldSize_2 = TileSystem.MapSize(zoomLevel) / 2;
+		mProjection = osmv.getProjection();
+		final int zoomLevel = mProjection.getZoomLevel();
 
 		// Save the Mercator coordinates of what is on the screen
-		mViewportRect.set(projection.getScreenRect());
-		mViewportRect.offset(mWorldSize_2, mWorldSize_2);
+		Rect screenRect = mProjection.getScreenRect();
 
-		// Start calculating the tile area with the current viewport
-		mTileArea.set(mViewportRect);
+		mProjection.toMercatorPixels(screenRect.left, screenRect.top, mTopLeftMercator);
+		mProjection.toMercatorPixels(screenRect.right, screenRect.bottom, mBottomRightMercator);
+		mTileArea.set(mTopLeftMercator.x, mTopLeftMercator.y, mBottomRightMercator.x,
+				mBottomRightMercator.y);
 
 		// Get the target zoom level difference.
 		int miniMapZoomLevelDifference = getZoomDifference();
@@ -171,16 +170,15 @@ public class MinimapOverlay extends TilesOverlay {
 				+ (getHeight() / 2));
 
 		// Get the area where we will draw the minimap in screen coordinates
-		mMiniMapCanvasRect.set(mViewportRect.right - getPadding() - getWidth(),
-				mViewportRect.bottom - getPadding() - getHeight(), mViewportRect.right
-						- getPadding(), mViewportRect.bottom - getPadding());
-		mMiniMapCanvasRect.offset(-mWorldSize_2, -mWorldSize_2);
+		mMiniMapCanvasRect.set(screenRect.right - getPadding() - getWidth(), screenRect.bottom
+				- getPadding() - getHeight(), screenRect.right - getPadding(), screenRect.bottom
+				- getPadding());
 
 		// Draw a solid background where the minimap will be drawn with a 2 pixel inset
-		pC.drawRect(mMiniMapCanvasRect.left - 2, mMiniMapCanvasRect.top - 2,
+		c.drawRect(mMiniMapCanvasRect.left - 2, mMiniMapCanvasRect.top - 2,
 				mMiniMapCanvasRect.right + 2, mMiniMapCanvasRect.bottom + 2, mPaint);
 
-		super.drawTiles(pC.getSafeCanvas(), projection.getZoomLevel() - miniMapZoomLevelDifference,
+		super.drawTiles(c, mProjection, mProjection.getZoomLevel() - miniMapZoomLevelDifference,
 				TileSystem.getTileSize(), mTileArea);
 	}
 
@@ -197,26 +195,22 @@ public class MinimapOverlay extends TilesOverlay {
 				yOffset + tileRect.height());
 
 		// Save the current clipping bounds
-		final Rect oldClip = c.getClipBounds();
-
+		c.save();
 		// Check to see if the drawing area intersects with the minimap area
-		if (mIntersectionRect.setIntersect(oldClip, mMiniMapCanvasRect)) {
+		if (mIntersectionRect.setIntersect(c.getClipBounds(), mMiniMapCanvasRect)) {
 			// If so, then clip that area
 			c.clipRect(mIntersectionRect);
 
 			// Draw the tile, which will be appropriately clipped
 			currentMapTile.draw(c);
-
-			// Restore the original clipping bounds
-			c.clipRect(oldClip);
 		}
+		c.restore();
 	}
 
 	@Override
 	public boolean onSingleTapUp(final MotionEvent pEvent, final MapView pMapView) {
 		// Consume event so layers underneath don't receive
-		if (mMiniMapCanvasRect.contains((int) pEvent.getX() + mViewportRect.left - mWorldSize_2,
-				(int) pEvent.getY() + mViewportRect.top - mWorldSize_2)) {
+		if (mMiniMapCanvasRect.contains((int) pEvent.getX(), (int) pEvent.getY())) {
 			return true;
 		}
 
@@ -226,8 +220,7 @@ public class MinimapOverlay extends TilesOverlay {
 	@Override
 	public boolean onDoubleTap(final MotionEvent pEvent, final MapView pMapView) {
 		// Consume event so layers underneath don't receive
-		if (mMiniMapCanvasRect.contains((int) pEvent.getX() + mViewportRect.left - mWorldSize_2,
-				(int) pEvent.getY() + mViewportRect.top - mWorldSize_2)) {
+		if (mMiniMapCanvasRect.contains((int) pEvent.getX(), (int) pEvent.getY())) {
 			return true;
 		}
 
@@ -237,8 +230,7 @@ public class MinimapOverlay extends TilesOverlay {
 	@Override
 	public boolean onLongPress(final MotionEvent pEvent, final MapView pMapView) {
 		// Consume event so layers underneath don't receive
-		if (mMiniMapCanvasRect.contains((int) pEvent.getX() + mViewportRect.left - mWorldSize_2,
-				(int) pEvent.getY() + mViewportRect.top - mWorldSize_2)) {
+		if (mMiniMapCanvasRect.contains((int) pEvent.getX(), (int) pEvent.getY())) {
 			return true;
 		}
 

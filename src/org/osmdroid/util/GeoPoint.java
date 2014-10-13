@@ -135,12 +135,12 @@ public class GeoPoint implements IGeoPoint, MathConstants, GeoConstants, Parcela
 
 	@Override
 	public double getLongitude() {
-		return this.mLongitudeE6 / 1E6;
+		return this.mLongitudeE6 * 1E-6;
 	}
 
 	@Override
 	public double getLatitude() {
-		return this.mLatitudeE6 / 1E6;
+		return this.mLatitudeE6 * 1E-6;
 	}
 
 	public int getAltitude() {
@@ -169,8 +169,8 @@ public class GeoPoint implements IGeoPoint, MathConstants, GeoConstants, Parcela
 	// ===========================================================
 
 	@Override
-	public Object clone() {
-		return new GeoPoint(this.mLatitudeE6, this.mLongitudeE6);
+	public GeoPoint clone() {
+		return new GeoPoint(this.mLatitudeE6, this.mLongitudeE6, this.mAltitude);
 	}
 
 	@Override

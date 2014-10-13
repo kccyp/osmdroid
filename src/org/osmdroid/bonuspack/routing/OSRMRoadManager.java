@@ -14,20 +14,21 @@ import org.osmdroid.util.BoundingBoxE6;
 import org.osmdroid.util.GeoPoint;
 import android.util.Log;
 
-/** get a route between a start and a destination point.
+/** get a route between a start and a destination point, going through a list of waypoints.
  * It uses OSRM, a free open source routing service based on OpenSteetMap data. <br>
- * See https://github.com/DennisOSRM/Project-OSRM/wiki/Server-api<br>
  * 
  * It requests by default the OSRM demo site. 
  * Use setService() to request an other (for instance your own) OSRM service. <br> 
+ * 
  * TODO: improve internationalization of instructions
+ * 
+ * @see <a href="https://github.com/DennisOSRM/Project-OSRM/wiki/Server-api">OSRM</a>
+ * 
  * @author M.Kergall
  */
 public class OSRMRoadManager extends RoadManager {
 
-	static final String OSRM_SERVICE = "http://router.project-osrm.org/viaroute?";
-	//Note that the result of OSRM is quite close to Cloudmade NavEngine format:
-	//http://developers.cloudmade.com/wiki/navengine/JSON_format
+	static final String SERVICE = "http://router.project-osrm.org/viaroute?";
 
 	protected String mServiceUrl;
 	protected String mUserAgent;
@@ -167,7 +168,7 @@ public class OSRMRoadManager extends RoadManager {
 	
 	public OSRMRoadManager(){
 		super();
-		mServiceUrl = OSRM_SERVICE;
+		mServiceUrl = SERVICE;
 		mUserAgent = BonusPackHelper.DEFAULT_USER_AGENT; //set user agent to the default one. 
 	}
 	
@@ -216,8 +217,9 @@ public class OSRMRoadManager extends RoadManager {
 		Road road = new Road();
 		try {
 			JSONObject jObject = new JSONObject(jString);
+			road.mStatus = jObject.getInt("status");
 			String route_geometry = jObject.getString("route_geometry");
-			road.mRouteHigh = PolylineEncoder.decode(route_geometry, 1);
+			road.mRouteHigh = PolylineEncoder.decode(route_geometry, 1, false);
 			JSONArray jInstructions = jObject.getJSONArray("route_instructions");
 			int n = jInstructions.length();
 			RoadNode lastNode = null;
@@ -246,17 +248,17 @@ public class OSRMRoadManager extends RoadManager {
 			road.mLength = jSummary.getInt("total_distance")/1000.0;
 			road.mDuration = jSummary.getInt("total_time");
 		} catch (JSONException e) {
+			road.mStatus = Road.STATUS_TECHNICAL_ISSUE;
 			e.printStackTrace();
-			return new Road(waypoints);
 		}
-		if (road.mRouteHigh.size()==0){
+		if (road.mStatus != Road.STATUS_OK){
 			//Create default road:
+			int status = road.mStatus;
 			road = new Road(waypoints);
+			road.mStatus = status;
 		} else {
 			road.buildLegs(waypoints);
-			BoundingBoxE6 bb = BoundingBoxE6.fromGeoPoints(road.mRouteHigh);
-			//Correcting osmdroid bug #359:
-			//road.mBoundingBox = new BoundingBoxE6(bb.getLatSouthE6(), bb.getLonWestE6(), bb.getLatNorthE6(), bb.getLonEastE6());
+			road.mBoundingBox = BoundingBoxE6.fromGeoPoints(road.mRouteHigh);
 			road.mStatus = Road.STATUS_OK;
 		}
 		Log.d(BonusPackHelper.LOG_TAG, "OSRMRoadManager.getRoad - finished");

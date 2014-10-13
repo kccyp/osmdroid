@@ -5,10 +5,8 @@ import java.util.ArrayList;
 
 import org.osmdroid.ResourceProxy;
 import org.osmdroid.views.MapView;
-import org.osmdroid.views.MapView.Projection;
+import org.osmdroid.views.Projection;
 import org.osmdroid.views.overlay.OverlayItem.HotspotPlace;
-import org.osmdroid.views.safecanvas.ISafeCanvas;
-import org.osmdroid.views.safecanvas.ISafeCanvas.UnsafeCanvasHandler;
 
 import android.graphics.Canvas;
 import android.graphics.Point;
@@ -28,7 +26,7 @@ import android.view.MotionEvent;
  *
  * @param <Item>
  */
-public abstract class ItemizedOverlay<Item extends OverlayItem> extends SafeDrawOverlay implements
+public abstract class ItemizedOverlay<Item extends OverlayItem> extends Overlay implements
 		Overlay.Snappable {
 
 	// ===========================================================
@@ -107,7 +105,7 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends SafeDraw
 	 *            if true, draw the shadow layer. If false, draw the overlay contents.
 	 */
 	@Override
-	protected void drawSafe(ISafeCanvas canvas, MapView mapView, boolean shadow) {
+	protected void draw(Canvas c, MapView mapView, boolean shadow) {
 
 		if (shadow) {
 			return;
@@ -123,9 +121,9 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends SafeDraw
 		/* Draw in backward cycle, so the items with the least index are on the front. */
 		for (int i = size; i >= 0; i--) {
 			final Item item = getItem(i);
-			pj.toMapPixels(item.getPoint(), mCurScreenCoords);
+			pj.toPixels(item.getPoint(), mCurScreenCoords);
 
-			onDrawItem(canvas, item, mCurScreenCoords, mapView.getMapOrientation());
+			onDrawItem(c, item, mCurScreenCoords, mapView.getMapOrientation());
 		}
 	}
 
@@ -168,7 +166,8 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends SafeDraw
 	 * @param curScreenCoords
 	 * @param aMapOrientation
 	 */
-	protected void onDrawItem(final ISafeCanvas canvas, final Item item, final Point curScreenCoords, final float aMapOrientation) {
+	protected void onDrawItem(final Canvas canvas, final Item item, final Point curScreenCoords,
+			final float aMapOrientation) {
 		final int state = (mDrawFocusedItem && (mFocusedItem == item) ? OverlayItem.ITEM_STATE_FOCUSED_MASK
 				: 0);
 		final Drawable marker = (item.getMarker(state) == null) ? getDefaultMarker(state) : item
@@ -178,16 +177,7 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends SafeDraw
 		boundToHotspot(marker, hotspot);
 
 		// draw it
-		if (this.isUsingSafeCanvas()) {
-			Overlay.drawAt(canvas.getSafeCanvas(), marker, curScreenCoords.x, curScreenCoords.y, false, aMapOrientation);
-		} else {
-			canvas.getUnsafeCanvas(new UnsafeCanvasHandler() {
-				@Override
-				public void onUnsafeCanvas(Canvas canvas) {
-					Overlay.drawAt(canvas, marker, curScreenCoords.x, curScreenCoords.y, false, aMapOrientation);
-				}
-			});
-		}
+		Overlay.drawAt(canvas, marker, curScreenCoords.x, curScreenCoords.y, false, aMapOrientation);
 	}
 
 	protected Drawable getDefaultMarker(final int state) {
@@ -224,7 +214,7 @@ public abstract class ItemizedOverlay<Item extends OverlayItem> extends SafeDraw
 
 		for (int i = 0; i < size; i++) {
 			final Item item = getItem(i);
-			pj.toMapPixels(item.getPoint(), mCurScreenCoords);
+			pj.toPixels(item.getPoint(), mCurScreenCoords);
 
 			final int state = (mDrawFocusedItem && (mFocusedItem == item) ? OverlayItem.ITEM_STATE_FOCUSED_MASK
 					: 0);

@@ -14,7 +14,7 @@ public class CloudmadeTileSource extends OnlineTileSourceBase implements IStyled
 
 	public CloudmadeTileSource(final String pName, final ResourceProxy.string pResourceId,
 			final int pZoomMinLevel, final int pZoomMaxLevel, final int pTileSizePixels,
-			final String pImageFilenameEnding, final String... pBaseUrl) {
+			final String pImageFilenameEnding, final String[] pBaseUrl) {
 		super(pName, pResourceId, pZoomMinLevel, pZoomMaxLevel, pTileSizePixels,
 				pImageFilenameEnding, pBaseUrl);
 	}

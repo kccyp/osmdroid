@@ -6,26 +6,25 @@ import org.osmdroid.bonuspack.utils.BonusPackHelper;
 import org.osmdroid.util.BoundingBoxE6;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
-import org.osmdroid.views.MapView.Projection;
+import org.osmdroid.views.Projection;
 import org.osmdroid.views.overlay.ItemizedIconOverlay;
 import org.osmdroid.views.overlay.OverlayItem;
-import org.osmdroid.views.safecanvas.ISafeCanvas;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Point;
 import android.util.Log;
 
 /**
- * An itemized overlay with an InfoWindow or "bubble" which opens 
- * when the user taps on an overlay item, and displays item attributes. <br>
+ * A collection of icons placed at particular points on the map's surface. 
+ * When the user taps on an icon, an InfoWindow or "bubble" will open and display item attributes. <br>
  * Items must be ExtendedOverlayItem. <br>
- * 
  * 
  * @see ExtendedOverlayItem
  * @see InfoWindow
- * 
+ * @deprecated now use Marker instead. 
  * @author M.Kergall
  */
-public class ItemizedOverlayWithBubble<Item extends OverlayItem> extends ItemizedIconOverlay<Item> {
+@Deprecated public class ItemizedOverlayWithBubble<Item extends OverlayItem> extends ItemizedIconOverlay<Item> {
 	//protected List<Item> mItemsList;
 	protected InfoWindow mBubble; //only one for all items of this overlay => one at a time
 	protected OverlayItem mItemWithBubble; //the item currently showing the bubble. Null if none. 
@@ -47,8 +46,8 @@ public class ItemizedOverlayWithBubble<Item extends OverlayItem> extends Itemize
 			mBubble = bubble;
 		} else {
 			//build default bubble:
-			String packageName = context.getPackageName();
 			if (layoutResId == 0){
+				String packageName = context.getPackageName();
 				layoutResId = context.getResources().getIdentifier("layout/bonuspack_bubble", null, packageName);
 				if (layoutResId == 0)
 					Log.e(BonusPackHelper.LOG_TAG, "ItemizedOverlayWithBubble: layout/bonuspack_bubble not found in "+packageName);
@@ -76,10 +75,7 @@ public class ItemizedOverlayWithBubble<Item extends OverlayItem> extends Itemize
 		for (Item item:mItemList){
 			points.add(item.getPoint());
 		}
-		BoundingBoxE6 bb = BoundingBoxE6.fromGeoPoints(points);
-		//Correcting osmdroid bug #359:
-		//bb = new BoundingBoxE6(bb.getLatSouthE6(), bb.getLonWestE6(), bb.getLatNorthE6(), bb.getLonEastE6());
-		return bb;
+		return BoundingBoxE6.fromGeoPoints(points);
 	}
 	
 	/**
@@ -147,7 +143,7 @@ public class ItemizedOverlayWithBubble<Item extends OverlayItem> extends Itemize
 		hideBubble();
 	}
 
-	@Override public synchronized void drawSafe(final ISafeCanvas canvas, final MapView mapView, final boolean shadow) {
+	@Override public synchronized void draw(final Canvas canvas, final MapView mapView, final boolean shadow) {
 		//1. Fixing drawing focused item on top in ItemizedOverlay (osmdroid issue 354):
 		//2. Fixing lack of synchronization on mItemList
 		if (shadow) {
@@ -161,13 +157,13 @@ public class ItemizedOverlayWithBubble<Item extends OverlayItem> extends Itemize
 		for (int i = size; i >= 0; i--) {
 	        final Item item = getItem(i);
 			if (item != mItemWithBubble){
-		        pj.toMapPixels(item.getPoint(), mCurScreenCoords);
+		        pj.toPixels(item.getPoint(), mCurScreenCoords);
 		        onDrawItem(canvas, item, mCurScreenCoords, mapView.getMapOrientation());
 			}
 		}
 		//draw focused item last:
 		if (mItemWithBubble != null){
-	        pj.toMapPixels(mItemWithBubble.getPoint(), mCurScreenCoords);
+	        pj.toPixels(mItemWithBubble.getPoint(), mCurScreenCoords);
 	        onDrawItem(canvas, (Item)mItemWithBubble, mCurScreenCoords, mapView.getMapOrientation());
 		}
     }

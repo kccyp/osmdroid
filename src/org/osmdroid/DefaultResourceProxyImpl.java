@@ -54,12 +54,6 @@ public class DefaultResourceProxyImpl implements ResourceProxy, MapViewConstants
 			return "Cycle Map";
 		case public_transport:
 			return "Public transport";
-		case base:
-			return "OSM base layer";
-		case topo:
-			return "Topographic";
-		case hills:
-			return "Hills";
 		case cloudmade_standard:
 			return "CloudMade (Standard tiles)";
 		case cloudmade_small:
@@ -70,6 +64,8 @@ public class DefaultResourceProxyImpl implements ResourceProxy, MapViewConstants
 			return "Mapquest Aerial";
 		case bing:
 			return "Bing";
+		case mapbox:
+			return "MapBox";
 		case fiets_nl:
 			return "OpenFietsKaart overlay";
 		case base_nl:

@@ -20,10 +20,9 @@ import org.xml.sax.helpers.DefaultHandler;
 
 import android.util.Log;
 
-/** class to get a route between a start and a destination point, 
- * going through a list of waypoints. <br>
- * https://developers.google.com/maps/documentation/directions/<br>
+/** class to get a route between a start and a destination point, going through a list of waypoints. <br>
  * Note that displaying a route provided by Google on a non-Google map (like OSM) is not allowed by Google T&C. 
+ * @see <a href="https://developers.google.com/maps/documentation/directions">Google Maps Directions API</a>
  * @author M.Kergall
  */
 public class GoogleRoadManager extends RoadManager {
@@ -59,7 +58,7 @@ public class GoogleRoadManager extends RoadManager {
 	}
 	
 	/** 
-	 * @param waypoints: list of GeoPoints. Must have at least 2 entries, start and end points. 
+	 * @param waypoints list of GeoPoints. Must have at least 2 entries, start and end points. 
 	 * @return the road
 	 */
 	@Override public Road getRoad(ArrayList<GeoPoint> waypoints) {
@@ -112,7 +111,7 @@ class GoogleDirectionsHandler extends DefaultHandler {
 	int mValue;
 	double mLat, mLng;
 	double mNorth, mWest, mSouth, mEast;
-	private String mString;
+	private StringBuilder mStringBuilder = new StringBuilder(1024);
 	
 	public GoogleDirectionsHandler() {
 		isOverviewPolyline = isBB = isPolyline = isLeg = isStep = isDuration = isDistance = false;
@@ -138,7 +137,7 @@ class GoogleDirectionsHandler extends DefaultHandler {
 		} else if (localName.equals("bounds")) {
 			isBB = true;
 		}
-		mString = new String();
+		mStringBuilder.setLength(0);
 	}
 
 	/**
@@ -146,8 +145,7 @@ class GoogleDirectionsHandler extends DefaultHandler {
 	 */
 	public @Override void characters(char[] ch, int start, int length)
 			throws SAXException {
-		String chars = new String(ch, start, length);
-		mString = mString.concat(chars);
+		mStringBuilder.append(ch, start, length);
 	}
 	
 	public void endElement(String uri, String localName, String name)
@@ -155,18 +153,18 @@ class GoogleDirectionsHandler extends DefaultHandler {
 		if (localName.equals("points")) {
 			if (isPolyline) {
 				//detailed piece of road for the step, to add:
-				ArrayList<GeoPoint> polyLine = PolylineEncoder.decode(mString, 10);
+				ArrayList<GeoPoint> polyLine = PolylineEncoder.decode(mStringBuilder.toString(), 10, false);
 				mRoad.mRouteHigh.addAll(polyLine);
 			} else if (isOverviewPolyline){
 				//low-def polyline for the whole road:
-				mRoad.setRouteLow(PolylineEncoder.decode(mString, 10));
+				mRoad.setRouteLow(PolylineEncoder.decode(mStringBuilder.toString(), 10, false));
 			}
 		} else if (localName.equals("polyline")) {
 			isPolyline = false;
 		} else if (localName.equals("overview_polyline")) {
 			isOverviewPolyline = false;
 		} else if (localName.equals("value")) {
-			mValue = Integer.parseInt(mString);
+			mValue = Integer.parseInt(mStringBuilder.toString());
 		} else if (localName.equals("duration")) {
 			if (isStep)
 				mNode.mDuration = mValue;
@@ -181,9 +179,10 @@ class GoogleDirectionsHandler extends DefaultHandler {
 			isDistance = false;
 		} else if (localName.equals("html_instructions")) {
 			if (isStep){
-				mString = mString.replaceAll("<[^>]*>", " "); //remove everything in <...>
-				mString = mString.replaceAll("&nbsp;", " ");
-				mNode.mInstructions = mString;
+				String value = mStringBuilder.toString();
+				//value = value.replaceAll("<[^>]*>", " "); //remove everything in <...>
+				//value = value.replaceAll("&nbsp;", " ");
+				mNode.mInstructions = value;
 				//Log.d(BonusPackHelper.LOG_TAG, mString);
 			}
 		} else if (localName.equals("start_location")) {
@@ -196,9 +195,9 @@ class GoogleDirectionsHandler extends DefaultHandler {
 			mRoad.mLegs.add(mLeg);
 			isLeg = false;
 		} else if (localName.equals("lat")) {
-				mLat = Double.parseDouble(mString);
+				mLat = Double.parseDouble(mStringBuilder.toString());
 		} else if (localName.equals("lng")) {
-				mLng = Double.parseDouble(mString);
+				mLng = Double.parseDouble(mStringBuilder.toString());
 		} else if (localName.equals("northeast")){
 			if (isBB){
 				mNorth = mLat;

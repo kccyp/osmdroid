@@ -1,9 +1,12 @@
 // Created by plusminus on 21:37:08 - 27.09.2008
 package org.osmdroid.views;
 
+import java.util.LinkedList;
+
 import org.osmdroid.api.IGeoPoint;
 import org.osmdroid.api.IMapController;
 import org.osmdroid.util.BoundingBoxE6;
+import org.osmdroid.views.MapView.OnFirstLayoutListener;
 import org.osmdroid.views.util.MyMath;
 import org.osmdroid.views.util.constants.MapViewConstants;
 
@@ -11,10 +14,10 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.animation.ValueAnimator.AnimatorUpdateListener;
-import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Build;
+import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.Animation.AnimationListener;
 import android.view.animation.ScaleAnimation;
@@ -24,7 +27,7 @@ import android.view.animation.ScaleAnimation;
  * @author Nicolas Gramlich
  * @author Marc Kurtz
  */
-public class MapController implements IMapController, MapViewConstants {
+public class MapController implements IMapController, MapViewConstants, OnFirstLayoutListener {
 
 	// ===========================================================
 	// Constants
@@ -44,12 +47,21 @@ public class MapController implements IMapController, MapViewConstants {
 
 	private Animator mCurrentAnimator;
 
+	// Keep track of calls before initial layout
+	private ReplayController mReplayController;
+
 	// ===========================================================
 	// Constructors
 	// ===========================================================
 
 	public MapController(MapView mapView) {
 		mMapView = mapView;
+
+		// Keep track of initial layout
+		mReplayController = new ReplayController();
+		if (!mMapView.isLayoutOccurred()) {
+			mMapView.addOnFirstLayoutListener(this);
+		}
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
 			mZoomInAnimation = ValueAnimator.ofFloat(1f, 2f);
@@ -72,6 +84,11 @@ public class MapController implements IMapController, MapViewConstants {
 			mZoomOutAnimationOld.setAnimationListener(new MyZoomAnimationListener());
 		}
 	}
+	
+	@Override
+	public void onFirstLayout(View v, int left, int top, int right, int bottom) {
+		mReplayController.replayCalls();
+	}
 
 	public void zoomToSpan(final BoundingBoxE6 bb) {
 		zoomToSpan(bb.getLatitudeSpanE6(), bb.getLongitudeSpanE6());
@@ -84,8 +101,14 @@ public class MapController implements IMapController, MapViewConstants {
 			return;
 		}
 
-		final BoundingBoxE6 bb = this.mMapView.getBoundingBox();
-		final int curZoomLevel = this.mMapView.getZoomLevel();
+		// If no layout, delay this call
+		if (!mMapView.isLayoutOccurred()) {
+			mReplayController.zoomToSpan(latSpanE6, lonSpanE6);
+			return;
+		}
+
+		final BoundingBoxE6 bb = this.mMapView.getProjection().getBoundingBox();
+		final int curZoomLevel = this.mMapView.getProjection().getZoomLevel();
 
 		final int curLatSpan = bb.getLatitudeSpanE6();
 		final int curLonSpan = bb.getLongitudeSpanE6();
@@ -108,7 +131,12 @@ public class MapController implements IMapController, MapViewConstants {
 	 */
 	@Override
 	public void animateTo(final IGeoPoint point) {
-		Point p = mMapView.getProjection().toMapPixels(point, null);
+		// If no layout, delay this call
+		if (!mMapView.isLayoutOccurred()) {
+			mReplayController.animateTo(point);
+			return;
+		}
+		Point p = mMapView.getProjection().toPixels(point, null);
 		animateTo(p.x, p.y);
 	}
 
@@ -116,12 +144,21 @@ public class MapController implements IMapController, MapViewConstants {
 	 * Start animating the map towards the given point.
 	 */
 	public void animateTo(int x, int y) {
+		// If no layout, delay this call
+		if (!mMapView.isLayoutOccurred()) {
+			mReplayController.animateTo(x, y);
+			return;
+		}
+
 		if (!mMapView.isAnimating()) {
 			mMapView.mIsFlinging = false;
+			Point mercatorPoint = mMapView.getProjection().toMercatorPixels(x, y, null);
+			// The points provided are "center", we want relative to upper-left for scrolling
+			mercatorPoint.offset(-mMapView.getWidth() / 2, -mMapView.getHeight() / 2);
 			final int xStart = mMapView.getScrollX();
 			final int yStart = mMapView.getScrollY();
-			mMapView.getScroller().startScroll(xStart, yStart, x - xStart, y - yStart,
-					ANIMATION_DURATION_DEFAULT);
+			mMapView.getScroller().startScroll(xStart, yStart, mercatorPoint.x - xStart,
+					mercatorPoint.y - yStart, ANIMATION_DURATION_DEFAULT);
 			mMapView.postInvalidate();
 		}
 	}
@@ -136,8 +173,17 @@ public class MapController implements IMapController, MapViewConstants {
 	 */
 	@Override
 	public void setCenter(final IGeoPoint point) {
-		Point p = mMapView.getProjection().toMapPixels(point, null);
-		this.mMapView.scrollTo(p.x, p.y);
+		// If no layout, delay this call
+		if (!mMapView.isLayoutOccurred()) {
+			mReplayController.setCenter(point);
+			return;
+		}
+
+		Point p = mMapView.getProjection().toPixels(point, null);
+		p = mMapView.getProjection().toMercatorPixels(p.x, p.y, p);
+		// The points provided are "center", we want relative to upper-left for scrolling
+		p.offset(-mMapView.getWidth() / 2, -mMapView.getHeight() / 2);
+		mMapView.scrollTo(p.x, p.y);
 	}
 
 	@Override
@@ -148,7 +194,7 @@ public class MapController implements IMapController, MapViewConstants {
 
 	/**
 	 * Stops a running animation.
-	 *
+	 * 
 	 * @param jumpToTarget
 	 */
 	@Override
@@ -187,8 +233,7 @@ public class MapController implements IMapController, MapViewConstants {
 	 */
 	@Override
 	public boolean zoomIn() {
-		Point coords = mMapView.getProjection().toMapPixels(mMapView.getMapCenter(), null);
-		return zoomInFixing(coords.x, coords.y);
+		return zoomInFixing(mMapView.getWidth() / 2, mMapView.getHeight() / 2);
 	}
 
 	@Override
@@ -218,8 +263,7 @@ public class MapController implements IMapController, MapViewConstants {
 	 */
 	@Override
 	public boolean zoomOut() {
-		Point coords = mMapView.getProjection().toMapPixels(mMapView.getMapCenter(), null);
-		return zoomOutFixing(coords.x, coords.y);
+		return zoomOutFixing(mMapView.getWidth() / 2, mMapView.getHeight() / 2);
 	}
 
 	@Override
@@ -250,22 +294,25 @@ public class MapController implements IMapController, MapViewConstants {
 
 	protected void onAnimationEnd() {
 		final Rect screenRect = mMapView.getProjection().getScreenRect();
-		final Matrix m = new Matrix();
-		m.setScale(1 / mMapView.mMultiTouchScale, 1 / mMapView.mMultiTouchScale,
-				mMapView.mMultiTouchScalePoint.x, mMapView.mMultiTouchScalePoint.y);
-		m.postRotate(-mMapView.getMapOrientation(), screenRect.exactCenterX(),
-				screenRect.exactCenterY());
-		float[] pts = new float[2];
-		pts[0] = mMapView.getScrollX();
-		pts[1] = mMapView.getScrollY();
-		m.mapPoints(pts);
-		mMapView.scrollTo((int) pts[0], (int) pts[1]);
+		Point p = mMapView.getProjection().unrotateAndScalePoint(screenRect.centerX(),
+				screenRect.centerY(), null);
+		p = mMapView.getProjection().toMercatorPixels(p.x, p.y, p);
+		// The points provided are "center", we want relative to upper-left for scrolling
+		p.offset(-mMapView.getWidth() / 2, -mMapView.getHeight() / 2);
+		mMapView.mIsAnimating.set(false);
+		mMapView.scrollTo(p.x, p.y);
 		setZoom(mMapView.mTargetZoomLevel.get());
 		mMapView.mMultiTouchScale = 1f;
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
 			mCurrentAnimator = null;
 		}
-		mMapView.mIsAnimating.set(false);
+
+		// Fix for issue 477
+		if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.GINGERBREAD_MR1) {
+			mMapView.clearAnimation();
+			mZoomInAnimationOld.reset();
+			mZoomOutAnimationOld.reset();
+		}
 	}
 
 	protected class MyZoomAnimatorListener extends AnimatorListenerAdapter {
@@ -305,6 +352,63 @@ public class MapController implements IMapController, MapViewConstants {
 		@Override
 		public void onAnimationRepeat(Animation animation) {
 			// Nothing to do here...
+		}
+	}
+
+	private enum ReplayType {
+		ZoomToSpanPoint, AnimateToPoint, AnimateToGeoPoint, SetCenterPoint
+	};
+
+	private class ReplayController {
+		private LinkedList<ReplayClass> mReplayList = new LinkedList<ReplayClass>();
+
+		public void animateTo(IGeoPoint geoPoint) {
+			mReplayList.add(new ReplayClass(ReplayType.AnimateToGeoPoint, null, geoPoint));
+		}
+
+		public void animateTo(int x, int y) {
+			mReplayList.add(new ReplayClass(ReplayType.AnimateToPoint, new Point(x, y), null));
+		}
+
+		public void setCenter(IGeoPoint geoPoint) {
+			mReplayList.add(new ReplayClass(ReplayType.SetCenterPoint, null, geoPoint));
+		}
+
+		public void zoomToSpan(int x, int y) {
+			mReplayList.add(new ReplayClass(ReplayType.ZoomToSpanPoint, new Point(x, y), null));
+		}
+
+		public void replayCalls() {
+			for (ReplayClass replay : mReplayList) {
+				switch (replay.mReplayType) {
+				case AnimateToGeoPoint:
+					MapController.this.animateTo(replay.mGeoPoint);
+					break;
+				case AnimateToPoint:
+					MapController.this.animateTo(replay.mPoint.x, replay.mPoint.y);
+					break;
+				case SetCenterPoint:
+					MapController.this.setCenter(replay.mGeoPoint);
+					break;
+				case ZoomToSpanPoint:
+					MapController.this.zoomToSpan(replay.mPoint.x, replay.mPoint.y);
+					break;
+				}
+			}
+			mReplayList.clear();
+		}
+
+		private class ReplayClass {
+			private ReplayType mReplayType;
+			private Point mPoint;
+			private IGeoPoint mGeoPoint;
+
+			public ReplayClass(ReplayType mReplayType, Point mPoint, IGeoPoint mGeoPoint) {
+				super();
+				this.mReplayType = mReplayType;
+				this.mPoint = mPoint;
+				this.mGeoPoint = mGeoPoint;
+			}
 		}
 	}
 }

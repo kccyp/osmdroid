@@ -1,12 +1,10 @@
 package org.osmdroid.tileprovider;
 
 import java.util.LinkedList;
-import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
+
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
-
 
 public class BitmapPool {
 	final LinkedList<Bitmap> mPool = new LinkedList<Bitmap>();
@@ -28,12 +26,9 @@ public class BitmapPool {
 			}
 	}
 
-	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
-	@SuppressLint("NewApi")
 	public void applyReusableOptions(final BitmapFactory.Options aBitmapOptions) {
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-			Bitmap pooledBitmap = obtainBitmapFromPool();
-			aBitmapOptions.inBitmap = pooledBitmap;
+			aBitmapOptions.inBitmap = obtainBitmapFromPool();
 			aBitmapOptions.inSampleSize = 1;
 			aBitmapOptions.inMutable = true;
 		}
@@ -62,6 +57,7 @@ public class BitmapPool {
 				for (final Bitmap bitmap : mPool) {
 					if (bitmap.isRecycled()) {
 						mPool.remove(bitmap);
+						return obtainSizedBitmapFromPool(aWidth, aHeight); // recurse to prevent ConcurrentModificationException
 					} else if (bitmap.getWidth() == aWidth && bitmap.getHeight() == aHeight) {
 						mPool.remove(bitmap);
 						return bitmap;
@@ -71,5 +67,14 @@ public class BitmapPool {
 		}
 
 		return null;
+	}
+
+	public void clearBitmapPool() {
+		synchronized (sInstance.mPool) {
+			while (!sInstance.mPool.isEmpty()) {
+				Bitmap bitmap = sInstance.mPool.remove();
+				bitmap.recycle();
+			}
+		}
 	}
 }

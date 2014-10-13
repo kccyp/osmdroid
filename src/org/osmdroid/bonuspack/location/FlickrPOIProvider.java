@@ -11,7 +11,7 @@ import android.util.Log;
 
 /**
  * POI Provider using Flickr service to get geolocalized photos. 
- * @see http://www.flickr.com/services/api/flickr.photos.search.html
+ * @see <a href="http://www.flickr.com/services/api/flickr.photos.search.html">Flickr API</a>
  * @author M.Kergall
  */
 public class FlickrPOIProvider {
@@ -20,14 +20,14 @@ public class FlickrPOIProvider {
 	
 	/**
 	 * @param apiKey the registered API key to give to Flickr service. 
-	 * @see http://www.flickr.com/help/api/
+	 * @see <a href="http://www.flickr.com/help/api/">Flickr registration</a>
 	 */
 	public FlickrPOIProvider(String apiKey){
 		mApiKey = apiKey;
 	}
 	
 	private String getUrlInside(BoundingBoxE6 boundingBox, int maxResults){
-		StringBuffer url = new StringBuffer("http://api.flickr.com/services/rest/?method=flickr.photos.search");
+		StringBuffer url = new StringBuffer("https://api.flickr.com/services/rest/?method=flickr.photos.search");
 		url.append("&api_key="+mApiKey);
 		url.append("&bbox="+boundingBox.getLonWestE6()*1E-6);
 		url.append(","+boundingBox.getLatSouthE6()*1E-6);
@@ -96,8 +96,6 @@ public class FlickrPOIProvider {
 	 * @return the list of POI
 	 */
 	public ArrayList<POI> getThem(String fullUrl){
-		//for local debug: 
-		//fullUrl = "http://10.0.2.2/flickr_mockup.json";
 		Log.d(BonusPackHelper.LOG_TAG, "FlickrPOIProvider:get:"+fullUrl);
 		String jString = BonusPackHelper.requestStringFromUrl(fullUrl);
 		if (jString == null) {
@@ -121,7 +119,7 @@ public class FlickrPOIProvider {
 				poi.mType = jPhoto.getString("title");
 				poi.mThumbnailPath = jPhoto.getString("url_sq");
 				String owner = jPhoto.getString("owner");
-				poi.mUrl = "http://www.flickr.com/photos/"+owner+"/"+photoId;
+				poi.mUrl = "https://www.flickr.com/photos/"+owner+"/"+photoId;
 				pois.add(poi);
 			}
 			int total = jPhotos.getInt("total");

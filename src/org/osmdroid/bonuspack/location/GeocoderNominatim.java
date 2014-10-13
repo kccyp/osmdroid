@@ -5,13 +5,14 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.osmdroid.bonuspack.utils.BonusPackHelper;
 import org.osmdroid.util.BoundingBoxE6;
 import org.osmdroid.util.GeoPoint;
-
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import android.content.Context;
 import android.location.Address;
 import android.os.Bundle;
@@ -19,8 +20,8 @@ import android.util.Log;
 
 /**
  * Implements an equivalent to Android Geocoder class, based on OpenStreetMap data and Nominatim API. <br>
- * See http://wiki.openstreetmap.org/wiki/Nominatim
- * or http://open.mapquestapi.com/nominatim/
+ * @see <a href="http://wiki.openstreetmap.org/wiki/Nominatim">Nominatim Reference</a>
+ * @see <a href="http://open.mapquestapi.com/nominatim/">Nominatim at MapQuest Open</a>
  * 
  * @author M.Kergall
  */
@@ -32,18 +33,14 @@ public class GeocoderNominatim {
 	protected String mServiceUrl;
 	protected boolean mPolygon;
 	
-	protected void init(Context context, Locale locale){
+	public GeocoderNominatim(Context context, Locale locale){
 		mLocale = locale;
 		setOptions(false);
 		setService(NOMINATIM_SERVICE_URL); //default service
 	}
 	
-	public GeocoderNominatim(Context context, Locale locale){
-		init(context, locale);
-	}
-	
 	public GeocoderNominatim(Context context){
-		init(context, Locale.getDefault());
+		this(context, Locale.getDefault());
 	}
 
 	static public boolean isPresent(){
@@ -71,51 +68,51 @@ public class GeocoderNominatim {
 	 * Current implementation is mainly targeting french addresses,
 	 * and will be quite basic on other countries. 
 	 */
-	protected Address buildAndroidAddress(JSONObject jResult) throws JSONException{
+	protected Address buildAndroidAddress(JsonObject jResult) throws JsonSyntaxException{
 		Address gAddress = new Address(mLocale);
-		gAddress.setLatitude(jResult.getDouble("lat"));
-		gAddress.setLongitude(jResult.getDouble("lon"));
+		gAddress.setLatitude(jResult.get("lat").getAsDouble());
+		gAddress.setLongitude(jResult.get("lon").getAsDouble());
 
-		JSONObject jAddress = jResult.getJSONObject("address");
+		JsonObject jAddress = jResult.get("address").getAsJsonObject();
 
 		int addressIndex = 0;
 		if (jAddress.has("road")){
-			gAddress.setAddressLine(addressIndex++, jAddress.getString("road"));
-			gAddress.setThoroughfare(jAddress.getString("road"));
+			gAddress.setAddressLine(addressIndex++, jAddress.get("road").getAsString());
+			gAddress.setThoroughfare(jAddress.get("road").getAsString());
 		}
 		if (jAddress.has("suburb")){
 			//gAddress.setAddressLine(addressIndex++, jAddress.getString("suburb"));
 				//not kept => often introduce "noise" in the address.
-			gAddress.setSubLocality(jAddress.getString("suburb"));
+			gAddress.setSubLocality(jAddress.get("suburb").getAsString());
 		}
 		if (jAddress.has("postcode")){
-			gAddress.setAddressLine(addressIndex++, jAddress.getString("postcode"));
-			gAddress.setPostalCode(jAddress.getString("postcode"));
+			gAddress.setAddressLine(addressIndex++, jAddress.get("postcode").getAsString());
+			gAddress.setPostalCode(jAddress.get("postcode").getAsString());
 		}
 		
 		if (jAddress.has("city")){
-			gAddress.setAddressLine(addressIndex++, jAddress.getString("city"));
-			gAddress.setLocality(jAddress.getString("city"));
+			gAddress.setAddressLine(addressIndex++, jAddress.get("city").getAsString());
+			gAddress.setLocality(jAddress.get("city").getAsString());
 		} else if (jAddress.has("town")){
-			gAddress.setAddressLine(addressIndex++, jAddress.getString("town"));
-			gAddress.setLocality(jAddress.getString("town"));
+			gAddress.setAddressLine(addressIndex++, jAddress.get("town").getAsString());
+			gAddress.setLocality(jAddress.get("town").getAsString());
 		} else if (jAddress.has("village")){
-			gAddress.setAddressLine(addressIndex++, jAddress.getString("village"));
-			gAddress.setLocality(jAddress.getString("village"));
+			gAddress.setAddressLine(addressIndex++, jAddress.get("village").getAsString());
+			gAddress.setLocality(jAddress.get("village").getAsString());
 		}
 		
 		if (jAddress.has("county")){ //France: departement
-			gAddress.setSubAdminArea(jAddress.getString("county"));
+			gAddress.setSubAdminArea(jAddress.get("county").getAsString());
 		}
 		if (jAddress.has("state")){ //France: region
-			gAddress.setAdminArea(jAddress.getString("state"));
+			gAddress.setAdminArea(jAddress.get("state").getAsString());
 		}
 		if (jAddress.has("country")){
-			gAddress.setAddressLine(addressIndex++, jAddress.getString("country"));
-			gAddress.setCountryName(jAddress.getString("country"));
+			gAddress.setAddressLine(addressIndex++, jAddress.get("country").getAsString());
+			gAddress.setCountryName(jAddress.get("country").getAsString());
 		}
 		if (jAddress.has("country_code"))
-			gAddress.setCountryCode(jAddress.getString("country_code"));
+			gAddress.setCountryCode(jAddress.get("country_code").getAsString());
 		
 		/* Other possible OSM tags in Nominatim results not handled yet: 
 		 * subway, golf_course, bus_stop, parking,...
@@ -129,31 +126,35 @@ public class GeocoderNominatim {
 		//Add non-standard (but very useful) information in Extras bundle:
 		Bundle extras = new Bundle();
 		if (jResult.has("polygonpoints")){
-			JSONArray jPolygonPoints = jResult.getJSONArray("polygonpoints");
-			ArrayList<GeoPoint> polygonPoints = new ArrayList<GeoPoint>(jPolygonPoints.length());
-			for (int i=0; i<jPolygonPoints.length(); i++){
-				JSONArray jCoords = jPolygonPoints.getJSONArray(i);
-				double lon = jCoords.getDouble(0);
-				double lat = jCoords.getDouble(1);
+			JsonArray jPolygonPoints = jResult.get("polygonpoints").getAsJsonArray();
+			ArrayList<GeoPoint> polygonPoints = new ArrayList<GeoPoint>(jPolygonPoints.size());
+			for (int i=0; i<jPolygonPoints.size(); i++){
+				JsonArray jCoords = jPolygonPoints.get(i).getAsJsonArray();
+				double lon = jCoords.get(0).getAsDouble();
+				double lat = jCoords.get(1).getAsDouble();
 				GeoPoint p = new GeoPoint(lat, lon);
 				polygonPoints.add(p);
 			}
 			extras.putParcelableArrayList("polygonpoints", polygonPoints);
 		}
 		if (jResult.has("boundingbox")){
-			JSONArray jBoundingBox = jResult.getJSONArray("boundingbox");
+			JsonArray jBoundingBox = jResult.get("boundingbox").getAsJsonArray();
 			BoundingBoxE6 bb = new BoundingBoxE6(
-					jBoundingBox.getDouble(1), jBoundingBox.getDouble(2), 
-					jBoundingBox.getDouble(0), jBoundingBox.getDouble(3));
+					jBoundingBox.get(1).getAsDouble(), jBoundingBox.get(2).getAsDouble(), 
+					jBoundingBox.get(0).getAsDouble(), jBoundingBox.get(3).getAsDouble());
 			extras.putParcelable("boundingbox", bb);
 		}
 		if (jResult.has("osm_id")){
-			long osm_id = jResult.getLong("osm_id");
+			long osm_id = jResult.get("osm_id").getAsLong();
 			extras.putLong("osm_id", osm_id);
 		}
 		if (jResult.has("osm_type")){
-			String osm_type = jResult.getString("osm_type");
+			String osm_type = jResult.get("osm_type").getAsString();
 			extras.putString("osm_type", osm_type);
+		}
+		if (jResult.has("display_name")){
+			String display_name = jResult.get("display_name").getAsString();
+			extras.putString("display_name", display_name);
 		}
 		gAddress.setExtras(extras);
 		
@@ -177,41 +178,48 @@ public class GeocoderNominatim {
 		if (result == null)
 			throw new IOException();
 		try {
-			JSONObject jResult = new JSONObject(result);
+			JsonParser parser = new JsonParser();
+			JsonElement json = parser.parse(result);
+			JsonObject jResult = json.getAsJsonObject();
 			Address gAddress = buildAndroidAddress(jResult);
-			List<Address> list = new ArrayList<Address>();
+			List<Address> list = new ArrayList<Address>(1);
 			list.add(gAddress);
 			return list;
-		} catch (JSONException e) {
+		} catch (JsonSyntaxException e) {
 			throw new IOException();
 		}
 	}
 
 	/**
 	 * Equivalent to Geocoder::getFromLocation(String locationName, int maxResults, double lowerLeftLatitude, double lowerLeftLongitude, double upperRightLatitude, double upperRightLongitude)
-	 * @see getFromLocationName(String locationName, int maxResults), about extra data added in Address results. 
+	 * but adding bounded parameter. 
+	 * @param bounded true = return only results which are inside the view box; false = view box is used as a preferred area to find search results. 
 	 */
 	public List<Address> getFromLocationName(String locationName, int maxResults, 
 			double lowerLeftLatitude, double lowerLeftLongitude, 
-			double upperRightLatitude, double upperRightLongitude)
+			double upperRightLatitude, double upperRightLongitude,
+			boolean bounded)
 	throws IOException {
 		String url = mServiceUrl
-			+ "search?"
-			+ "format=json"
-			+ "&accept-language=" + mLocale.getLanguage()
-			+ "&addressdetails=1"
-			+ "&limit=" + maxResults
-			+ "&q=" + URLEncoder.encode(locationName);
-		if (lowerLeftLatitude != 0.0 && lowerLeftLongitude != 0.0){
+				+ "search?"
+				+ "format=json"
+				+ "&accept-language=" + mLocale.getLanguage()
+				+ "&addressdetails=1"
+				+ "&limit=" + maxResults
+				+ "&q=" + URLEncoder.encode(locationName);
+		if (lowerLeftLatitude != 0.0 && upperRightLatitude != 0.0){
 			//viewbox = left, top, right, bottom:
 			url += "&viewbox=" + lowerLeftLongitude
 				+ "," + upperRightLatitude
 				+ "," + upperRightLongitude
 				+ "," + lowerLeftLatitude
-				+ "&bounded=1";
+				+ "&bounded="+(bounded ? 1 : 0);
 		}
 		if (mPolygon){
-			url += "&polygon=1"; //get polygon outlines for items found
+			//get polygon outlines for items found:
+			url += "&polygon=1";
+			//TODO: polygon param is obsolete. Should be replaced by polygon_geojson. 
+			//Upgrade is on hold, waiting for MapQuest service to become compatible. 
 		}
 		Log.d(BonusPackHelper.LOG_TAG, "GeocoderNominatim::getFromLocationName:"+url);
 		String result = BonusPackHelper.requestStringFromUrl(url);
@@ -219,17 +227,33 @@ public class GeocoderNominatim {
 		if (result == null)
 			throw new IOException();
 		try {
-			JSONArray jResults = new JSONArray(result);
-			List<Address> list = new ArrayList<Address>();
-			for (int i=0; i<jResults.length(); i++){
-				JSONObject jResult = jResults.getJSONObject(i);
+			JsonParser parser = new JsonParser();
+			JsonElement json = parser.parse(result);
+			JsonArray jResults = json.getAsJsonArray();
+			List<Address> list = new ArrayList<Address>(jResults.size());
+			for (int i=0; i<jResults.size(); i++){
+				JsonObject jResult = jResults.get(i).getAsJsonObject();
 				Address gAddress = buildAndroidAddress(jResult);
 				list.add(gAddress);
 			}
+			Log.d(BonusPackHelper.LOG_TAG, "done");
 			return list;
-		} catch (JSONException e) {
+		} catch (JsonSyntaxException e) {
 			throw new IOException();
 		}
+	}
+	
+	/**
+	 * Equivalent to Geocoder::getFromLocation(String locationName, int maxResults, double lowerLeftLatitude, double lowerLeftLongitude, double upperRightLatitude, double upperRightLongitude)
+	 * @see #getFromLocationName(String locationName, int maxResults) about extra data added in Address results. 
+	 */
+	public List<Address> getFromLocationName(String locationName, int maxResults, 
+			double lowerLeftLatitude, double lowerLeftLongitude, 
+			double upperRightLatitude, double upperRightLongitude)
+	throws IOException {
+		return getFromLocationName(locationName, maxResults, 
+				lowerLeftLatitude, lowerLeftLongitude, 
+				upperRightLatitude, upperRightLongitude, true);
 	}
 
 	/**
@@ -239,12 +263,12 @@ public class GeocoderNominatim {
 	 * "boundingbox": the enclosing bounding box, as a BoundingBoxE6<br>
 	 * "osm_id": the OSM id, as a long<br>
 	 * "osm_type": one of the 3 OSM types, as a string (node, way, or relation). <br>
+	 * "display_name": the address, as a single String
 	 * "polygonpoints": the enclosing polygon of the location (depending on setOptions usage), as an ArrayList of GeoPoint<br>
-	 * (others could be added if needed)
 	 */
 	public List<Address> getFromLocationName(String locationName, int maxResults)
 	throws IOException {
-		return getFromLocationName(locationName, maxResults, 0.0, 0.0, 0.0, 0.0);
+		return getFromLocationName(locationName, maxResults, 0.0, 0.0, 0.0, 0.0, false);
 	}
 	
 }
